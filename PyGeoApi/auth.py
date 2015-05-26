@@ -1,30 +1,31 @@
 import pdb
+from datetime import datetime
 from app import app, db
-from flask_jwt import JWT, jwt_required
+from api import find_user, user_info
+from flask_jwt import JWT, current_app
+
+app.config['JWT_SECRET_KEY'] = "ahsdkjahduiahydiuahdiuashdl23137808asdajdoasudo==--*/*1"
+app.config['JWT_AUTH_URL_RULE'] = '/authenticate'
+
 jwt = JWT(app)
 
-app.config['SECRET_KEY'] = 'super-secret'
-
-
-class User(object):
-    def __init__(self, **kwargs):
-        for k, v in kwargs.items():
-            setattr(self, k, v)
-
+# @app.route('/protected')
+# @jwt_required()
+# def protected():
+#     return 'Success!'
 
 @jwt.authentication_handler
 def authenticate(username, password):
-    if username == 'joe' and password == 'pass':
-        return User(id=1, username='joe')
+    # import pdb; pdb.set_trace()
+    user = find_user(username, password)
+    return user
 
 
 @jwt.user_handler
 def load_user(payload):
-    if payload['user_id'] == 1:
-        return User(id=1, username='joe')
+    # return user_info(payload["token"])
+    return payload
 
-
-@app.route('/protected')
-@jwt_required()
-def protected():
-    return 'Success!'
+@jwt.payload_handler
+def make_payload(user):
+    return {'user_token': user["token"]}
