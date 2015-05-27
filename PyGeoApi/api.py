@@ -19,7 +19,9 @@ def find_user(username, password):
 
 
 def user_info(token):
-    return db["users"].find_one({"token": token})
+    return db["users"].find_one(
+        {"token": token},
+        {"username": True, "token": True})
 
 
 # helper functions

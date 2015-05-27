@@ -23,6 +23,7 @@ def signup_route():
 @app.route('/me')
 @jwt_required()
 def me_route():
+    current_user.pop("token")
     return jsonify(current_user)
 
 
