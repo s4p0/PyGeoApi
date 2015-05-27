@@ -21,12 +21,12 @@
       <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
     <![endif]-->
   </head>
-  <body>
+  <body ng-controller="HomeCtrl">
     
 
     <ul class="nav nav-tabs" role="tablist" id="myTab">
       <li role="presentation" class="active"><a href="#Login" aria-controls="Login" role="tab" data-toggle="tab">Login</a></li>
-      <li role="presentation"><a href="#Profile" aria-controls="Profile" role="tab" data-toggle="tab">Profile</a></li>
+      <li role="presentation" ng-show="token.isLogged"  ><a href="#Profile" aria-controls="Profile" role="tab" data-toggle="tab">Profile</a></li>
       <li role="presentation"><a href="#Token" aria-controls="Token" role="tab" data-toggle="tab">Token</a></li>
     </ul>
 
@@ -34,7 +34,7 @@
       <div role="tabpanel" class="tab-pane active" id="Login">
         <h2>Login Tab</h2>
         
-        <form class="form-inline" ng-controller="HomeCtrl">
+        <form class="form-inline" ng-hide="token.isLogged"  >
           <div class="form-group">
             <label class="sr-only" for="exampleInputUsername3">Username address</label>
             <input type="text" class="form-control" id="exampleInputUsername3" placeholder="Enter username" ng-model="user.username">
@@ -46,10 +46,12 @@
           <button type="button" class="btn btn-primary" ng-click="login()">Sign in</button>
           <button type="button" class="btn btn-default" ng-click="debug()">Debug</button>
         </form>
+        <button type="button" class="btn btn-default" ng-click="logout()" ng-show="token.isLogged">Logout</button>
 
       </div>
       <div role="tabpanel" class="tab-pane" id="Profile">
           <h2>Profile Tab</h2>
+          <button type="button" class="btn btn-default" ng-click="getDetails()" ng-show="token.isLogged"  >Debug</button>
       </div>
       <div role="tabpanel" class="tab-pane" id="Token">
           <h2>Token Tab</h2>
@@ -65,94 +67,87 @@
     <script src="https://cdn.rawgit.com/auth0/angular-jwt/master/dist/angular-jwt.js"></script>
     <script>
     
-    angular.module('app', ['angular-jwt'])
-    .factory("MyAuth", function($http){
+    var myapp = angular.module('app', ['angular-jwt'])
+    .factory("jwtToken", function jwtToken(){
         return {
-            isAuthenticated: function() {
-              return window.localStorage.getItem('auth_token');
-            },
+          isLogged: false,
+          changeStatus: function(value){
+            //angular.copy(this.isLogged, value);
+            this.isLogged = value;
+          },
+          setToken: function(new_token){
+            window.localStorage.setItem("auth_token", new_token);
+            this.changeStatus(true);
+          },
+          clearToken: function(){
+            window.localStorage.clear("auth_token")
+            this.changeStatus(false);
+          }
+
+        }
+      })
+    .factory("MyAuth", [ "$http", "jwtToken",function MyAuth($http, jwtToken){
+        return {
             login: function(credentials) {
               var login = $http.post('http://localhost:5000/authenticate', credentials);
               login.success(function(result) {
-                window.localStorage.setItem('auth_token', result.token);
+                //window.localStorage.setItem('auth_token', result.token);
+                jwtToken.setToken(result.token);
               });
               return login;
             },
             logout: function() {
               // The backend doesn't care about logouts, delete the token and you're good to go.
-              window.localStorage.clear('auth_token');
+              // window.localStorage.clear('auth_token');
+              jwtToken.clearToken();
             },
         }
-    })
-    .controller("HomeCtrl", ["MyAuth", "$scope", function(MyAuth, $scope){
+    }])
+    .controller("HomeCtrl", ["MyAuth", "$scope", "$http", "jwtToken", function HomeCtrl(MyAuth, $scope, $http, jwtToken){
+        var auth = MyAuth;
         $scope.user = {};
         $scope.login = function(){
-            MyAuth.login($scope.user)
+            auth.login($scope.user)
         }
         $scope.debug = function(){
             console.info($scope.user);
         }
-    }]);
+        $scope.getDetails = function(){
+          $http.get("http://localhost:5000/me")
+          .success(function(data){
+            $scope.details = data;
+          })
+        }
+        $scope.logout = function(){
+          auth.logout();
+        }
+        $scope.token = jwtToken;
 
-
-/*    
-app.factory('Auth', function($http, LocalService, AccessLevels) {
-  return {
-    authorize: function(access) {
-      if (access === AccessLevels.user) {
-        return this.isAuthenticated();
-      } else {
-        return true;
-      }
-    },
-    isAuthenticated: function() {
-      return LocalService.get('auth_token');
-    },
-    login: function(credentials) {
-      var login = $http.post('/auth/authenticate', credentials);
-      login.success(function(result) {
-        LocalService.set('auth_token', JSON.stringify(result));
-      });
-      return login;
-    },
-    logout: function() {
-      // The backend doesn't care about logouts, delete the token and you're good to go.
-      LocalService.unset('auth_token');
-    },
-    register: function(formData) {
-      LocalService.unset('auth_token');
-      var register = $http.post('/auth/register', formData);
-      register.success(function(result) {
-        LocalService.set('auth_token', JSON.stringify(result));
-      });
-      return register;
-    }
-  };
-});
-
-app.factory('AuthInterceptor', function($q, $injector) {
-  return {
-    request: function(config) {
-      var LocalService = $injector.get('LocalService');
-      var token;
-      if (LocalService.get('auth_token')) {
-        token = angular.fromJson(LocalService.get('auth_token')).token;
-      }
-      if (token) {
-        config.headers.Authorization = 'Bearer ' + token;
-      }
-      return config;
-    },
-    responseError: function(response) {
-      if (response.status === 401 || response.status === 403) {
-        LocalService.unset('auth_token');
-        $injector.get('$state').go('anon.login');
-      }
-      return $q.reject(response);
-    }
-  };
-});
-*/
+    }])
+    .config(['$httpProvider', function($httpProvider) {
+      $httpProvider.interceptors.push(["$q", "jwtToken", function($q, jwtToken){
+          return {
+            request: function(config) {
+              var token;
+              if (window.localStorage.getItem('auth_token')) {
+                token = window.localStorage.getItem('auth_token');
+              }
+              if (token) {
+                config.headers.Authorization = 'Bearer ' + token;
+              }
+              return config;
+            },
+            responseError: function(response) {
+              if (response.status === 401 || response.status === 403 || response.status === 400) {
+                // window.localStorage.clear('auth_token');
+                // $injector.get('$state').go('anon.login');
+                jwtToken.clearToken();
+              }
+              return $q.reject(response);
+            }
+          }
+      }])
+    }])
 
     </script>
   </body>
