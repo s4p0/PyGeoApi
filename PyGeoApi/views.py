@@ -1,15 +1,11 @@
 from app import app
-from api import create_user, user_info
+from api import create_user, user_info, add_or_replace_layers, select_layers
 from tools import jsonify
 from flask import request
-from flask_jwt import jwt_required
-# from flask import jsonify
-
-@app.route("/hi")
-def hello_world():
-    return jsonify({"message": "hello there"})
+from flask_jwt import jwt_required, current_user
 
 
+# public routes
 @app.route("/signup", methods=["POST"])
 def signup_route():
     if request.form:
@@ -23,12 +19,19 @@ def signup_route():
     return jsonify({"message": "something wrong with your credentials"})
 
 
-@app.route("/token/<string:token>")
-def user_detail_route(token):
-    return jsonify({"user_info": user_info(token)})
-
-
-@app.route('/protected')
+# only protected routes
+@app.route('/me')
 @jwt_required()
-def protected():
-    return 'Success!'
+def me_route():
+    return jsonify(current_user)
+
+
+@app.route('/me/features', methods=["GET", "POST"])
+@jwt_required()
+def layers_route():
+    # current_user
+    if request.method == "GET":
+        return jsonify(select_layers(current_user))
+    if request.method == "POST":
+        return jsonify(add_or_replace_layers(current_user, request.json))
+    pass
