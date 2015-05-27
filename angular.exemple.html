@@ -74,7 +74,7 @@
             login: function(credentials) {
               var login = $http.post('http://localhost:5000/authenticate', credentials);
               login.success(function(result) {
-                window.localStorage.setItem('auth_token', JSON.stringify(result.token));
+                window.localStorage.setItem('auth_token', result.token);
               });
               return login;
             },
